@@ -1,0 +1,7 @@
+{
+  "name": "PhysiViz",
+  "description": "Upload physics problems to generate instant 3D visualizations and object extraction using Gemini.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
