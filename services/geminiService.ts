@@ -4,22 +4,34 @@ import { PhysicsScene } from "../types";
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const SYSTEM_INSTRUCTION = `
-You are a "Physics Scene Compiler." Your task is to analyze images of physics problems and extract the state into a structured JSON format for a 3D simulation engine (Three.js).
+You are a "Physics Scene Compiler." Your task is to analyze images of physics problems and extract the COMPLETE state into a structured JSON format for a 3D simulation engine (Three.js).
 
-### Extraction Rules:
-1. Identify all rigid bodies (spheres, cubes, planes, cones, cylinders, wedges/ramps).
-2. **Inclined Planes/Ramps**: 
-   - Use the 'wedge' shape for ramps. A wedge is a triangular prism.
-   - For 'wedge', dimensions should be: width (base length), height, and depth (thickness/extrusion).
-   - Alternatively, use a 'box' or 'plane' rotated appropriately.
-3. **Rotation**:
-   - Detect angles of inclination.
-   - Provide a 'rotation' vector [x, y, z] in radians for ALL objects that are not axis-aligned.
-   - For a standard inclined plane (ramp) going up, rotate around Z (e.g., [0, 0, 0.52] for 30 degrees).
-   - **Wheels**: If you see a wheel, ensure it is rotated to stand up (usually rotation [1.57, 0, 0] or [0, 0, 1.57] depending on orientation).
-4. Extract physical constants (mass, gravity, friction, initial velocity).
-5. Map coordinates: Y is UP. (0,0,0) is the scene origin.
-6. Return color suggestions.
+### CRITICAL INSTRUCTION:
+**DO NOT IGNORE ANY OBJECT.** You must extract every single visible element.
+**COORDINATE SYSTEM**: 
+- Y is UP. X is Right. Z is Forward/Backward.
+- **Center the scene**: Place the main objects near (0,0,0). Do not use large offset coordinates (like y=300). Keep values between -20 and 20 relative units.
+
+### Geometry & Shape Rules:
+1.  **Ramps/Inclines**: 
+    - PREFERRED: Use shape \`wedge\`. Dimensions: width (base width), height (vertical rise), depth (length along the slope).
+    - ALTERNATIVE: Use shape \`plane\` (box). Dimensions: width, height (which maps to length/depth on ground).
+2.  **Floors/Ground**: Use shape \`plane\`. 
+    - **IMPORTANT**: A \`plane\` is assumed to be a FLAT BOX lying on the XZ plane by default. 
+    - Dimensions: \`width\` (X size), \`height\` (Z size/depth). Thickness is auto-handled.
+3.  **Springs**: Use shape \`spring\`. Dimensions: height (length), radius.
+4.  **Pulleys**: Use shape \`pulley\`. Dimensions: radius, height (thickness).
+5.  **Ropes**: Use shape \`cylinder\` with very small radius (e.g., 0.05).
+
+### Rotation Rules (CRITICAL):
+1.  **Inclined Planes**: 
+    - If you use a \`plane\` for a ramp, you **MUST** provide a \`rotation\` vector [x, y, z] in radians.
+    - Example: A ramp inclined 30 degrees up to the right might be rotation [0, 0, 0.52].
+    - Since a plane is flat by default, rotating around Z creates a ramp.
+2.  **Wedges**: 
+    - Wedges are triangular prisms. Rotate them so the hypotenuse faces the correct way.
+3.  **Wheels/Pulleys**: 
+    - Default cylinder/pulley is flat like a coin. Rotate 90 deg (1.57 rad) to stand it up.
 
 ### Output Schema:
 Return ONLY a JSON object with this structure:
@@ -30,7 +42,7 @@ Return ONLY a JSON object with this structure:
       "name": "string",
       "type": "string", 
       "geometry": { 
-        "shape": "sphere" | "box" | "plane" | "cylinder" | "cone" | "wedge", 
+        "shape": "sphere" | "box" | "plane" | "cylinder" | "cone" | "wedge" | "spring" | "pulley", 
         "dimensions": { "radius": number, "width": number, "height": number, "depth": number },
         "color": "string (hex)"
       },
@@ -62,7 +74,7 @@ export const analyzePhysicsImage = async (file: File): Promise<PhysicsScene> => 
             },
           },
           {
-            text: "Compile this physics problem image into a 3D scene definition JSON.",
+            text: "Extract ALL physics objects. Center the scene at 0,0,0. Ensure inclined planes have rotation. Output JSON.",
           },
         ],
       },

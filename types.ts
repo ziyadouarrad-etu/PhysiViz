@@ -14,7 +14,7 @@ export interface Dimensions {
 }
 
 export interface Geometry {
-  shape: 'sphere' | 'cube' | 'box' | 'plane' | 'cone' | 'cylinder' | 'wedge' | 'unknown';
+  shape: 'sphere' | 'cube' | 'box' | 'plane' | 'cone' | 'cylinder' | 'wedge' | 'spring' | 'pulley' | 'unknown';
   dimensions: Dimensions;
   color?: string; // Optional aesthetic property
 }
