@@ -1,13 +1,13 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Chat } from "@google/genai";
 import { PhysicsScene } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const SYSTEM_INSTRUCTION = `
-You are a "Physics Scene Compiler." Your task is to analyze images of physics problems and extract the COMPLETE state into a structured JSON format for a 3D simulation engine (Three.js).
+You are a "Physics Scene Compiler." Your task is to analyze physics problems (from images or text descriptions) and extract the COMPLETE state into a structured JSON format for a 3D simulation engine (Three.js).
 
 ### CRITICAL INSTRUCTION:
-**DO NOT IGNORE ANY OBJECT.** You must extract every single visible element.
+**DO NOT IGNORE ANY OBJECT.** You must extract every single visible or described element.
 **COORDINATE SYSTEM**: 
 - Y is UP. X is Right. Z is Forward/Backward.
 - **Center the scene**: Place the main objects near (0,0,0). Do not use large offset coordinates (like y=300). Keep values between -20 and 20 relative units.
@@ -59,6 +59,47 @@ Return ONLY a JSON object with this structure:
 }
 `;
 
+const parseAndValidateResponse = (text: string): PhysicsScene => {
+    let data;
+    try {
+      // Remove any markdown code block syntax if present
+      const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      data = JSON.parse(cleanText);
+    } catch (e) {
+      console.error("Failed to parse JSON:", text);
+      throw new Error("Invalid JSON response from AI");
+    }
+
+    // Sanitize and validate structure
+    return {
+        scene_metadata: {
+            problem_type: data.scene_metadata?.problem_type || 'Physics Problem',
+            units: data.scene_metadata?.units || 'SI',
+        },
+        entities: Array.isArray(data.entities) ? data.entities.map((e: any, i: number) => ({
+            id: e.id || `entity-${i}`,
+            name: e.name || `Object ${i + 1}`,
+            type: e.type || 'object',
+            geometry: {
+                shape: e.geometry?.shape || 'box',
+                dimensions: e.geometry?.dimensions || { width: 1, height: 1, depth: 1 },
+                color: e.geometry?.color
+            },
+            physics: {
+                mass: typeof e.physics?.mass === 'number' ? e.physics.mass : 1,
+                position: Array.isArray(e.physics?.position) && e.physics.position.length === 3 ? e.physics.position : [0, 0, 0],
+                rotation: Array.isArray(e.physics?.rotation) && e.physics.rotation.length === 3 ? e.physics.rotation : undefined,
+                velocity: Array.isArray(e.physics?.velocity) && e.physics.velocity.length === 3 ? e.physics.velocity : [0, 0, 0],
+                is_static: !!e.physics?.is_static
+            }
+        })) : [],
+        environment: {
+            gravity: Array.isArray(data.environment?.gravity) && data.environment.gravity.length === 3 ? data.environment.gravity : [0, -9.8, 0],
+            friction_coefficient: typeof data.environment?.friction_coefficient === 'number' ? data.environment.friction_coefficient : 0.5
+        }
+    };
+};
+
 export const analyzePhysicsImage = async (file: File): Promise<PhysicsScene> => {
   try {
     const base64Data = await fileToGenerativePart(file);
@@ -87,49 +128,58 @@ export const analyzePhysicsImage = async (file: File): Promise<PhysicsScene> => 
     const text = response.text;
     if (!text) throw new Error("No response from Gemini");
 
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (e) {
-      console.error("Failed to parse JSON:", text);
-      throw new Error("Invalid JSON response from AI");
-    }
-
-    // Sanitize and validate structure
-    const safeData: PhysicsScene = {
-        scene_metadata: {
-            problem_type: data.scene_metadata?.problem_type || 'Physics Problem',
-            units: data.scene_metadata?.units || 'SI',
-        },
-        entities: Array.isArray(data.entities) ? data.entities.map((e: any, i: number) => ({
-            id: e.id || `entity-${i}`,
-            name: e.name || `Object ${i + 1}`,
-            type: e.type || 'object',
-            geometry: {
-                shape: e.geometry?.shape || 'box',
-                dimensions: e.geometry?.dimensions || { width: 1, height: 1, depth: 1 },
-                color: e.geometry?.color
-            },
-            physics: {
-                mass: typeof e.physics?.mass === 'number' ? e.physics.mass : 1,
-                position: Array.isArray(e.physics?.position) && e.physics.position.length === 3 ? e.physics.position : [0, 0, 0],
-                rotation: Array.isArray(e.physics?.rotation) && e.physics.rotation.length === 3 ? e.physics.rotation : undefined,
-                velocity: Array.isArray(e.physics?.velocity) && e.physics.velocity.length === 3 ? e.physics.velocity : [0, 0, 0],
-                is_static: !!e.physics?.is_static
-            }
-        })) : [],
-        environment: {
-            gravity: Array.isArray(data.environment?.gravity) && data.environment.gravity.length === 3 ? data.environment.gravity : [0, -9.8, 0],
-            friction_coefficient: typeof data.environment?.friction_coefficient === 'number' ? data.environment.friction_coefficient : 0.5
-        }
-    };
-
-    return safeData;
+    return parseAndValidateResponse(text);
 
   } catch (error) {
     console.error("Error analyzing image:", error);
     throw error;
   }
+};
+
+export const analyzePhysicsPrompt = async (prompt: string): Promise<PhysicsScene> => {
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: {
+          parts: [
+            {
+              text: `Generate a 3D physics scene JSON based on this description: "${prompt}". Center objects at 0,0,0. Ensure inclined planes have rotation.`
+            }
+          ]
+        },
+        config: {
+          systemInstruction: SYSTEM_INSTRUCTION,
+          responseMimeType: "application/json",
+        },
+      });
+  
+      const text = response.text;
+      if (!text) throw new Error("No response from Gemini");
+  
+      return parseAndValidateResponse(text);
+  
+    } catch (error) {
+      console.error("Error analyzing prompt:", error);
+      throw error;
+    }
+  };
+
+export const createChatSession = (sceneData: PhysicsScene): Chat => {
+  return ai.chats.create({
+    model: 'gemini-3-flash-preview',
+    config: {
+      systemInstruction: `You are a friendly Physics Tutor. The student is viewing a 3D simulation of a physics problem.
+      
+      Here is the data for the current scene:
+      ${JSON.stringify(sceneData, null, 2)}
+
+      Your goal is to help them understand the physics concepts at play (forces, energy, kinematics) based on this specific setup.
+      - Be concise and helpful.
+      - Refer to specific objects by name (e.g., "The red sphere").
+      - If asked to solve it, explain the steps using the variables provided.
+      `,
+    },
+  });
 };
 
 const fileToGenerativePart = (file: File): Promise<string> => {
