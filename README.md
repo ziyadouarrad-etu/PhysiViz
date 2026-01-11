@@ -3,6 +3,7 @@
 **PhysiViz** is an AI-powered web application designed to bridge the gap between abstract physics equations and physical intuition. It transforms text-based physics problems into interactive, real-time 3D visualizations.
 
 PhysiViz leverages Multimodal LLMs to analyze user prompts and dynamically generate complex physics scenes.
+<img width="1918" height="804" alt="image" src="https://github.com/user-attachments/assets/c5011ec7-62ec-40d8-8ec4-4a89766954c4" />
 
 ## ✨ Key Features
 
@@ -40,6 +41,9 @@ PhysiViz/
 * **`services/`**: This is the "brain" of the app. It handles the communication with the Gemini API to parse text prompts into structured physics data.
 * **`components/`**: Handles the visualization layer, ensuring the 3D scenes are responsive and interactive.
 * **`types.ts`**: Defines the mathematical and physical properties of simulation objects, ensuring type safety across the application.
+
+## 📸 screenshot
+<img width="1894" height="813" alt="image" src="https://github.com/user-attachments/assets/1cac4595-4e77-4876-a25a-f629556850f2" />
 
 ## 🚀 Getting Started
 
