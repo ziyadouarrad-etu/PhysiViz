@@ -1,7 +1,7 @@
 import { GoogleGenAI, Chat } from "@google/genai";
 import { PhysicsScene } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.VITE_API_KEY });
 
 const SYSTEM_INSTRUCTION = `
 You are a "Physics Scene Compiler." Your task is to analyze physics problems (from images or text descriptions) and extract the COMPLETE state into a structured JSON format for a 3D simulation engine (Three.js).
