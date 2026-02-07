@@ -16,7 +16,7 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const file = (event.target as any).files?.[0];
     if (!file) return;
 
     resetState();
@@ -34,7 +34,7 @@ const App: React.FC = () => {
       setError("Failed to analyze image. Please ensure it is a clear physics diagram and try again.");
     } finally {
       setLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (fileInputRef.current) (fileInputRef.current as any).value = '';
     }
   };
 
@@ -61,7 +61,7 @@ const App: React.FC = () => {
       setImagePreview(null);
   };
 
-  const triggerUpload = () => fileInputRef.current?.click();
+  const triggerUpload = () => (fileInputRef.current as any)?.click();
 
   return (
     <div className="flex flex-col h-screen w-full bg-slate-900 text-white font-sans">
@@ -147,7 +147,7 @@ const App: React.FC = () => {
                          </div>
                          <textarea 
                             value={promptInput}
-                            onChange={(e) => setPromptInput(e.target.value)}
+                            onChange={(e) => setPromptInput((e.target as any).value)}
                             placeholder="e.g. A red 5kg block sitting on a 30-degree inclined plane..."
                             className="flex-1 bg-slate-900/50 border border-slate-600 rounded-lg p-3 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none text-sm"
                          />

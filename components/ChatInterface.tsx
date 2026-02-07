@@ -3,6 +3,9 @@ import { MessageSquare, X, Send, Minus, Maximize2 } from 'lucide-react';
 import { PhysicsScene } from '../types';
 import { createChatSession } from '../services/geminiService';
 import { Chat, GenerateContentResponse } from "@google/genai";
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 
 interface ChatInterfaceProps {
   sceneData: PhysicsScene;
@@ -29,7 +32,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ sceneData }) => {
 
   // Auto-scroll to bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current) {
+        // Use block: 'nearest' to prevent the entire chat window from shifting/scrolling
+        // within its parent container, which causes the "shooting up" effect.
+        (messagesEndRef.current as any).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }, [messages, isOpen]);
 
   const handleSend = async () => {
@@ -114,7 +121,32 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ sceneData }) => {
                   : 'bg-slate-700 text-slate-200 rounded-bl-sm'
               }`}
             >
-              {msg.text}
+              {msg.role === 'user' ? (
+                msg.text
+              ) : (
+                <ReactMarkdown
+                    remarkPlugins={[remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                    components={{
+                        p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+                        ul: ({node, ...props}) => <ul className="list-disc list-inside mb-2" {...props} />,
+                        ol: ({node, ...props}) => <ol className="list-decimal list-inside mb-2" {...props} />,
+                        li: ({node, ...props}) => <li className="ml-1" {...props} />,
+                        strong: ({node, ...props}) => <strong className="font-bold text-blue-200" {...props} />,
+                        code: ({node, inline, className, children, ...props}: any) => {
+                            return inline ? (
+                                <code className="bg-slate-800 px-1 py-0.5 rounded text-xs font-mono text-blue-300" {...props}>{children}</code>
+                            ) : (
+                                <code className="block bg-slate-800 p-2 rounded text-xs font-mono text-blue-300 overflow-x-auto my-2" {...props}>{children}</code>
+                            )
+                        },
+                        a: ({node, ...props}) => <a className="text-blue-400 underline hover:text-blue-300" target="_blank" rel="noopener noreferrer" {...props} />,
+                        blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-slate-500 pl-3 italic text-slate-400 my-2" {...props} />,
+                    }}
+                >
+                    {msg.text}
+                </ReactMarkdown>
+              )}
             </div>
           </div>
         ))}
@@ -135,7 +167,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ sceneData }) => {
         <div className="relative">
           <textarea
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => setInput((e.target as any).value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask about this problem..."
             className="w-full bg-slate-800 border border-slate-600 text-slate-200 text-sm rounded-lg pl-3 pr-10 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-12 scrollbar-hide"
